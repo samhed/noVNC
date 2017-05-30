@@ -190,13 +190,13 @@ const UI = {
             var htmlFor = labels[i].htmlFor;
             if (htmlFor != '') {
                 var elem = document.getElementById(htmlFor);
-                if (elem) elem.label = labels[i];
+                if (elem) elem.noVNC_label = labels[i];
             } else {
                 // If 'for' isn't set, use the first input element child
                 var children = labels[i].children;
                 for (var j = 0; j < children.length; j++) {
                     if (children[j].form !== undefined) {
-                        children[j].label = labels[i];
+                        children[j].noVNC_label = labels[i];
                         break;
                     }
                 }
@@ -539,6 +539,7 @@ const UI = {
                 break;
             case 'error':
                 statusElem.classList.add("noVNC_status_error");
+                UI.highlightErrorElem(text);
                 break;
             case 'normal':
             case 'info':
@@ -564,10 +565,34 @@ const UI = {
     hideStatus: function() {
         clearTimeout(UI.statusTimeout);
         document.getElementById('noVNC_status').classList.remove("noVNC_open");
+        var settingElems = document.getElementById('noVNC_settings')
+            .getElementsByTagName('*');
+        for (var i = 0; i < settingElems.length; i++) {
+            settingElems[i].classList.remove("noVNC_highlighted");
+        }
     },
 
     notification: function (rfb, msg, level, options) {
         UI.showStatus(msg, level);
+    },
+
+    highlightErrorElem: function (text) {
+        var settingElems = document.getElementById('noVNC_settings')
+            .getElementsByTagName('*');
+        var msgWords = text.toLowerCase().split(' ');
+        for (var i = 0; i < settingElems.length; i++) {
+            var label = settingElems[i].noVNC_label;
+            var labelWords = [];
+            if (label) {
+                labelWords = label.textContent
+                    .toLowerCase().replace(':', '').split(' ');
+            }
+            for (var j = 0; j < labelWords.length; j++) {
+                if (msgWords.includes(labelWords[j])) {
+                    settingElems[i].classList.add("noVNC_highlighted");
+                }
+            }
+        }
     },
 
     activateControlbar: function(event) {
@@ -853,13 +878,13 @@ const UI = {
     disableSetting: function(name) {
         var ctrl = document.getElementById('noVNC_setting_' + name);
         ctrl.disabled = true;
-        ctrl.label.classList.add('noVNC_disabled');
+        ctrl.noVNC_label.classList.add('noVNC_disabled');
     },
 
     enableSetting: function(name) {
         var ctrl = document.getElementById('noVNC_setting_' + name);
         ctrl.disabled = false;
-        ctrl.label.classList.remove('noVNC_disabled');
+        ctrl.noVNC_label.classList.remove('noVNC_disabled');
     },
 
 /* ------^-------
