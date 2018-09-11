@@ -9,6 +9,8 @@ import * as Log from '../util/logging.js';
 import { isTouchDevice } from '../util/browser.js';
 import { setCapture, stopEvent, getPointerEvent } from '../util/events.js';
 
+import ZingTouch from '../../vendor/zingtouch/src/ZingTouch.js';
+
 const WHEEL_STEP = 10; // Delta threshold for a mouse wheel step
 const WHEEL_STEP_TIMEOUT = 50; // ms
 const WHEEL_LINE_HEIGHT = 19;
@@ -19,6 +21,11 @@ export default class Mouse {
 
         this._doubleClickTimer = null;
         this._lastTouchPos = null;
+
+        this._gestureOngoing = false;
+        this._gestureStartx = null;
+        this._gestureStarty = null;
+        this._touchTimer = null;
 
         this._pos = null;
         this._wheelStepXTimer = null;
@@ -42,6 +49,8 @@ export default class Mouse {
 
         this.onmousebutton = () => {}; // Handler for mouse button click/release
         this.onmousemove = () => {}; // Handler for mouse movement
+
+        this._zt = new ZingTouch.Region(this._target);
     }
 
     // ===== PRIVATE METHODS =====
@@ -245,11 +254,11 @@ export default class Mouse {
     grab() {
         const c = this._target;
 
-        if (isTouchDevice) {
+        /*if (isTouchDevice) {
             c.addEventListener('touchstart', this._eventHandlers.mousedown);
             c.addEventListener('touchend', this._eventHandlers.mouseup);
             c.addEventListener('touchmove', this._eventHandlers.mousemove);
-        }
+        }*/
         c.addEventListener('mousedown', this._eventHandlers.mousedown);
         c.addEventListener('mouseup', this._eventHandlers.mouseup);
         c.addEventListener('mousemove', this._eventHandlers.mousemove);
@@ -261,6 +270,85 @@ export default class Mouse {
         /* preventDefault() on mousedown doesn't stop this event for some
            reason so we have to explicitly block it */
         c.addEventListener('contextmenu', this._eventHandlers.mousedisable);
+
+        /*const zoomGesture = new ZingTouch.Distance();
+        this._zt.bind(c, zoomGesture, function(e) {
+            if (e.detail.change > 0) {
+                Log.Info("zoom in");
+            } else {
+                Log.Info("zoom out");
+            }
+        });
+
+        const rotateGesture = new ZingTouch.Rotate();
+        this._zt.bind(c, rotateGesture, function(e) {
+            if (Math.abs(e.detail.distanceFromOrigin) > 90) {
+                Log.Info("rotate");
+            }
+        });*/
+
+        const panGesture = new ZingTouch.Pan();
+        const panStart = panGesture.start.bind(panGesture);
+        panGesture.start = function customStart(inputs, state, element) {
+            if (inputs.length == 2) {
+                this._gestureOngoing = true;
+                if (this._touchTimer) {
+                    window.clearTimeout(this._touchTimer);
+                }
+
+                const touch1x = inputs[0].current.x;
+                const touch2x = inputs[1].current.x;
+                const touch1y = inputs[0].current.y;
+                const touch2y = inputs[1].current.y;
+
+                this._gestureStartx = touch1x + touch2x / 2;
+                this._gestureStarty = touch1y + touch2y / 2;
+
+                Log.Info("pan start");
+            } else if (this._gestureOngoing == false) {
+                this._touchTimer = window.setTimeout(function() {
+                    this._handleMouseDown(inputs[0].current.originalEvent);
+                }.bind(this), 100);
+            }
+            panStart(inputs, state, element);
+        }.bind(this);
+        const panEnd = panGesture.end.bind(panGesture);
+        panGesture.end = function customEnd(inputs, state, element) {
+            if (this._gestureOngoing == false) {
+                if (this._touchTimer) {
+                    window.clearTimeout(this._touchTimer);
+                    this._handleMouseDown(inputs[0].current.originalEvent);
+                }
+                this._handleMouseUp(inputs[0].current.originalEvent);
+            }
+            this._gestureOngoing = false;
+            panEnd(inputs, state, element);
+        }.bind(this);
+        const panMove = panGesture.move.bind(panGesture);
+        panGesture.move = function customMove(inputs, state, element) {
+            if (inputs.length == 2) {
+            //if (this._gestureOngoing) {
+                const touch1x = inputs[0].current.x;
+                const touch2x = inputs[1].current.x;
+                const centerx = touch1x + touch2x / 2;
+                const touch1y = inputs[0].current.y;
+                const touch2y = inputs[1].current.y;
+                const centery = touch1y + touch2y / 2;
+                if (Math.abs(centerx - this._gestureStartx) > 20 ||
+                    Math.abs(centery - this._gestureStarty) > 20) {
+                    Log.Info("pan: " + Math.floor(centerx) + "x" + Math.floor(centery));
+                    this._pos.x = centerx;
+                    this._pos.y = centery;
+                    this._accumulatedWheelDeltaX += (inputs[0].current.x - inputs[0].previous.x) / 10;
+                    this._accumulatedWheelDeltaY += (inputs[0].current.y - inputs[0].previous.y) / 10;
+                    this._accumulateWheelSteps();
+                }
+            } else {
+                this._handleMouseMove(inputs[0].current.originalEvent);
+            }
+        }.bind(this);
+
+        this._zt.bind(c, panGesture, function(e) {}, false);
     }
 
     ungrab() {
@@ -268,11 +356,11 @@ export default class Mouse {
 
         this._resetWheelStepTimers();
 
-        if (isTouchDevice) {
+        /*if (isTouchDevice) {
             c.removeEventListener('touchstart', this._eventHandlers.mousedown);
             c.removeEventListener('touchend', this._eventHandlers.mouseup);
             c.removeEventListener('touchmove', this._eventHandlers.mousemove);
-        }
+        }*/
         c.removeEventListener('mousedown', this._eventHandlers.mousedown);
         c.removeEventListener('mouseup', this._eventHandlers.mouseup);
         c.removeEventListener('mousemove', this._eventHandlers.mousemove);
