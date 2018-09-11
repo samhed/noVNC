@@ -144,6 +144,27 @@ export default class Mouse {
         this._accumulatedWheelDeltaY = 0;
     }
 
+    _accumulateWheelSteps() {
+        // Generate a mouse wheel step event when the accumulated delta
+        // for one of the axes is large enough.
+        // Small delta events that do not pass the threshold get sent
+        // after a timeout.
+        if (Math.abs(this._accumulatedWheelDeltaX) > WHEEL_STEP) {
+            this._generateWheelStepX();
+        } else {
+            this._wheelStepXTimer =
+                window.setTimeout(this._generateWheelStepX.bind(this),
+                                  WHEEL_STEP_TIMEOUT);
+        }
+        if (Math.abs(this._accumulatedWheelDeltaY) > WHEEL_STEP) {
+            this._generateWheelStepY();
+        } else {
+            this._wheelStepYTimer =
+                window.setTimeout(this._generateWheelStepY.bind(this),
+                                  WHEEL_STEP_TIMEOUT);
+        }
+    }
+
     _resetWheelStepTimers() {
         window.clearTimeout(this._wheelStepXTimer);
         window.clearTimeout(this._wheelStepYTimer);
@@ -172,24 +193,7 @@ export default class Mouse {
         this._accumulatedWheelDeltaX += dX;
         this._accumulatedWheelDeltaY += dY;
 
-        // Generate a mouse wheel step event when the accumulated delta
-        // for one of the axes is large enough.
-        // Small delta events that do not pass the threshold get sent
-        // after a timeout.
-        if (Math.abs(this._accumulatedWheelDeltaX) > WHEEL_STEP) {
-            this._generateWheelStepX();
-        } else {
-            this._wheelStepXTimer =
-                window.setTimeout(this._generateWheelStepX.bind(this),
-                                  WHEEL_STEP_TIMEOUT);
-        }
-        if (Math.abs(this._accumulatedWheelDeltaY) > WHEEL_STEP) {
-            this._generateWheelStepY();
-        } else {
-            this._wheelStepYTimer =
-                window.setTimeout(this._generateWheelStepY.bind(this),
-                                  WHEEL_STEP_TIMEOUT);
-        }
+        this._accumulateWheelSteps();
 
         stopEvent(e);
     }
